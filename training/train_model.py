@@ -8,8 +8,8 @@ from sklearn.metrics import accuracy_score
 
 DATA_DIR = "data"
 
-print("🔍 Starting training script...")
-print("📂 Looking for data directory:", DATA_DIR)
+print(" Starting training script...")
+print(" Looking for data directory:", DATA_DIR)
 
 def extract_features(file_path):
     y, sr = librosa.load(file_path, sr=None)
@@ -38,7 +38,7 @@ for label, class_name in enumerate(["human", "ai"]):
     print(f"➡️ Checking folder: {class_dir}")
 
     if not os.path.exists(class_dir):
-        print(f"❌ Folder not found: {class_dir}")
+        print(f" Folder not found: {class_dir}")
         continue
 
     for lang in os.listdir(class_dir):
@@ -70,7 +70,7 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-print("🧠 Training RandomForest model...")
+print(" Training RandomForest model...")
 
 model = RandomForestClassifier(
     n_estimators=200,
@@ -82,7 +82,8 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 acc = accuracy_score(y_test, y_pred)
 
-print(f"✅ Model accuracy: {acc:.2f}")
+print(f" Model accuracy: {acc:.2f}")
 
 joblib.dump(model, "model/voice_detector.pkl")
-print("💾 Model saved to model/voice_detector.pkl")
+print(" Model saved to model/voice_detector.pkl")
+
