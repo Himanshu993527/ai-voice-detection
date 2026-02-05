@@ -1,28 +1,92 @@
-from fastapi import FastAPI, Depends, HTTPException
-from app.auth import validate_api_key
+from fastapi import FastAPI, Header, HTTPException
+from pydantic import BaseModel
+import os
+
 from app.audio_utils import load_audio_from_base64
 from app.features import extract_features
 from app.model import predict
 from app.explain import generate_explanation
-from app.config import ALLOWED_LANGUAGES
 
-app = FastAPI()
+# -------------------------------------------------
+# Initialize FastAPI app
+# -------------------------------------------------
+app = FastAPI(
+    title="AI-Generated Voice Detection API",
+    description="Detect whether a voice is AI-generated or Human",
+    version="1.0.0"
+)
 
+# -------------------------------------------------
+# Root endpoint (IMPORTANT for Render & health check)
+# -------------------------------------------------
+@app.get("/")
+def root():
+    return {"status": "AI Voice Detection API is running"}
+
+# -------------------------------------------------
+# Request schema
+# -------------------------------------------------
+class VoiceRequest(BaseModel):
+    language: str
+    audioFormat: str
+    audioBase64: str
+
+# -------------------------------------------------
+# Main detection endpoint
+# -------------------------------------------------
 @app.post("/api/voice-detection")
-def detect_voice(data: dict, api_key: str = Depends(validate_api_key)):
+def voice_detection(
+    request: VoiceRequest,
+    x_api_key: str = Header(None)
+):
+    # -----------------------------
+    # API KEY validation
+    # -----------------------------
+    server_api_key = os.getenv("API_KEY")
 
-    if data["language"] not in ALLOWED_LANGUAGES:
-        raise HTTPException(status_code=400, detail="Unsupported language")
+    if server_api_key is None:
+        raise HTTPException(status_code=500, detail="API key not configured on server")
 
-    y, sr = load_audio_from_base64(data["audioBase64"])
-    features = extract_features(y, sr)
+    if x_api_key != server_api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
-    prediction, confidence = predict(features)
+    # -----------------------------
+    # Validate audio format
+    # -----------------------------
+    if request.audioFormat.lower() != "mp3":
+        raise HTTPException(status_code=400, detail="Only mp3 format is supported")
 
+    # -----------------------------
+    # Load audio from Base64
+    # -----------------------------
+    try:
+        audio_signal, sample_rate = load_audio_from_base64(request.audioBase64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted audioBase64")
+
+    # -----------------------------
+    # Feature extraction
+    # -----------------------------
+    features = extract_features(audio_signal, sample_rate)
+
+    # -----------------------------
+    # Model prediction
+    # -----------------------------
+    classification, confidence = predict(features)
+
+    # -----------------------------
+    # Explanation generation
+    # -----------------------------
+    explanation = generate_explanation(classification, confidence)
+
+    # -----------------------------
+    # Final response
+    # -----------------------------
     return {
         "status": "success",
-        "language": data["language"],
-        "classification": prediction,
+        "language": request.language,
+        "classification": classification,
         "confidenceScore": round(float(confidence), 2),
-        "explanation": generate_explanation(confidence, prediction)
+        "explanation": explanation
     }
+
